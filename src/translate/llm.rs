@@ -176,7 +176,7 @@ impl Translator {
         ")?;
 
         for &(scriptid, ref thread) in series {
-            eprintln!("--------- {scriptid}:{thread} ---------");
+            eprintln!("\n--------- {scriptid}:{thread} ---------");
             let mut rows = stmt.query((scriptid, thread))?;
             while let Some(row) = rows.next()? {
                 let (address, mut speaker, mut line, mut line_variant, translation) = <(u32, Option<String>, String, Option<String>, Option<String>)>::try_from(row)?;

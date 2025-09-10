@@ -1,7 +1,7 @@
 
 mod translate;
 
-use std::{cmp::Reverse, collections::{BTreeSet, BinaryHeap, HashMap, HashSet}, num::NonZeroU8, path::PathBuf};
+use std::{cmp::Reverse, collections::{BTreeSet, BinaryHeap, HashSet}, path::PathBuf};
 use indexmap::IndexSet;
 use petgraph::{csr::Csr, visit::EdgeRef, Directed};
 use rusqlite::{Connection, OpenFlags};
@@ -14,32 +14,30 @@ struct Args {
 }
 
 fn dijkstra(graph: &Csr<(), u8, Directed, u32>) -> Vec<u32> {
-    let mut seen = HashSet::new();
-    let mut dist = vec![u32::MAX; graph.node_count()];
+    let mut seen = HashSet::with_capacity(graph.node_count());
+    let mut dist = vec![None; graph.node_count()];
     let mut pred = vec![None; graph.node_count()];
 
     let mut q = BinaryHeap::new();
-    dist[0] = 0;
+    dist[0] = Some(0u32);
     q.push(Reverse((0, 0)));
-    for v in 1..graph.node_count() as u32 {
-        q.push(Reverse((u32::MAX, v)));
-    }
 
     while let Some(Reverse((_, u))) = q.pop() {
         if !seen.insert(u) { continue; }
 
         for e in graph.edges(u) {
             let v = e.target();
-            let alt = dist[u as usize].checked_add(*e.weight() as u32);
-            if let Some(alt) = alt && alt < dist[v as usize] {
+            let alt = dist[u as usize].and_then(|d| d.checked_add(*e.weight() as u32));
+            if let Some(alt) = alt && dist[v as usize].is_none_or(|d| alt < d) {
                 pred[v as usize] = Some(u);
-                dist[v as usize] = alt;
+                dist[v as usize] = Some(alt);
                 q.push(Reverse((alt, v)));
             }
         }
     }
 
-    assert!(dist.into_iter().all(|d| d != u32::MAX));
+    assert!(dist.into_iter().all(|d| d.is_some()));
+    assert!(pred[0].is_none());
     assert!(pred[1..].iter().all(|p| p.is_some()));
     pred[0] = Some(0);
 
@@ -77,14 +75,12 @@ async fn main() -> anyhow::Result<()> {
 
     let rem = {
         let mut stmt = db.prepare("
-            SELECT scriptid, thread, (COUNT(body) - COUNT(tl_body)) as rem
+            SELECT scriptid, thread
             FROM dialogue LEFT NATURAL JOIN dialogueTl
             GROUP BY scriptid, thread
-            HAVING rem != 0")?;
-        stmt.query_map((), |row| {
-            let (scriptid, thread, rem) = row.try_into()?;
-            Ok(((scriptid, thread), rem))
-        })?.collect::<Result<HashMap<(u16, String), NonZeroU8>, _>>()?
+            HAVING (COUNT(body) - COUNT(tl_body)) > 0")?;
+        stmt.query_map((), |row| row.try_into())?
+            .collect::<Result<HashSet<(u16, String)>, _>>()?
     };
 
     let mut graph = Csr::<(), u8, Directed, u32>::with_nodes(vertices.len() + 1);
@@ -139,7 +135,7 @@ async fn main() -> anyhow::Result<()> {
         }
         let series = path.into_iter().rev().map(|v| vertices.get_index(v as usize - 1).unwrap()).collect::<Vec<_>>();
 
-        if series.iter().all(|&v| rem.get(v).is_none()) {
+        if series.iter().all(|&v| !rem.contains(v)) {
             // we've done all of these already
             continue;
         }
@@ -148,7 +144,7 @@ async fn main() -> anyhow::Result<()> {
             eprint!("-> {scriptid}:{thread} ");
         }
 
-        eprintln!("\n");
+        eprintln!();
 
         if let Err(e) = translate::run(&cli, &mut db, series).await {
             eprintln!("SERIES FAILED: {e:?}");
