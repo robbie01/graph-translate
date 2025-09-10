@@ -211,7 +211,7 @@ impl Translator {
                         let mut seen = seen.clone();
                         let prompt = loop {
                             let prompt = build_prompt(&seen, speaker.as_deref(), &line)?;
-                            let tokens = tokenize(&cli, &prompt).await?;
+                            let tokens = tokenize(cli, &prompt).await?;
                             if tokens.len() > 1024-100 {
                                 seen.remove(0);
                                 continue;
@@ -219,7 +219,7 @@ impl Translator {
                             break tokens
                         };
 
-                        Some(get_completion(&cli, &prompt, &speaker_prefix).await?
+                        Some(get_completion(cli, &prompt, &speaker_prefix).await?
                             .strip_prefix(&speaker_prefix).unwrap().trim().to_owned())
                     },
                     None => None
@@ -228,7 +228,7 @@ impl Translator {
                 let translation = {
                     let prompt = loop {
                         let prompt = build_prompt(&seen, speaker.as_deref(), &line)?;
-                        let tokens = tokenize(&cli, &prompt).await?;
+                        let tokens = tokenize(cli, &prompt).await?;
                         if tokens.len() > 1024-100 {
                             seen.remove(0);
                             continue;
@@ -236,7 +236,7 @@ impl Translator {
                         break tokens
                     };
 
-                    get_completion(&cli, &prompt, &speaker_prefix).await?
+                    get_completion(cli, &prompt, &speaker_prefix).await?
                         .strip_prefix(&speaker_prefix).unwrap().trim().to_owned()
                 };
 
@@ -246,10 +246,10 @@ impl Translator {
                     eprintln!("[VARIANT] {speaker_prefix}{variant}\n");
                 }
 
-                tx.execute("
+                tx.prepare_cached("
                     INSERT OR REPLACE INTO dialogueTl(scriptid, address, body, variant_body)
                     VALUES (?, ?, ?, ?)
-                ", (scriptid, address, &translation, translation_variant))?;
+                ")?.execute((scriptid, address, &translation, translation_variant))?;
 
                 seen.push(Seen {
                     speaker: speaker.map(|speaker| {

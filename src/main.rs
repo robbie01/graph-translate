@@ -1,7 +1,7 @@
 
 mod translate;
 
-use std::{cmp::Reverse, collections::{BTreeSet, BinaryHeap, HashMap, HashSet}, path::PathBuf, u32};
+use std::{cmp::Reverse, collections::{BTreeSet, BinaryHeap, HashMap, HashSet}, num::NonZeroU8, path::PathBuf};
 use indexmap::IndexSet;
 use petgraph::{csr::Csr, visit::EdgeRef, Directed};
 use rusqlite::{Connection, OpenFlags};
@@ -77,13 +77,14 @@ async fn main() -> anyhow::Result<()> {
 
     let rem = {
         let mut stmt = db.prepare("
-            SELECT scriptid, thread, COUNT(body) - COUNT(tl_body)
+            SELECT scriptid, thread, (COUNT(body) - COUNT(tl_body)) as rem
             FROM dialogue LEFT NATURAL JOIN dialogueTl
-            GROUP BY scriptid, thread")?;
+            GROUP BY scriptid, thread
+            HAVING rem != 0")?;
         stmt.query_map((), |row| {
             let (scriptid, thread, rem) = row.try_into()?;
             Ok(((scriptid, thread), rem))
-        })?.collect::<Result<HashMap<(u16, String), u8>, _>>()?
+        })?.collect::<Result<HashMap<(u16, String), NonZeroU8>, _>>()?
     };
 
     let mut graph = Csr::<(), u8, Directed, u32>::with_nodes(vertices.len() + 1);
@@ -138,7 +139,7 @@ async fn main() -> anyhow::Result<()> {
         }
         let series = path.into_iter().rev().map(|v| vertices.get_index(v as usize - 1).unwrap()).collect::<Vec<_>>();
 
-        if series.iter().all(|&v| rem.get(v).is_none_or(|&v| v == 0)) {
+        if series.iter().all(|&v| rem.get(v).is_none()) {
             // we've done all of these already
             continue;
         }
