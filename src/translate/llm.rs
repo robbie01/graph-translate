@@ -138,7 +138,7 @@ async fn get_completion(client: &Client, prompt: &[u32], speaker: &str) -> anyho
         .json(&json!({
              "prompt": prompt,
              "n_predict": 100,
-             "grammar": (!speaker.is_empty()).then(|| format!("root ::= \"{speaker}\" [^\\x00]*"))
+             "grammar": format!("root ::= \"{speaker}\" [^\\x00]*")
         }))
         .send().await?.error_for_status()?
         .json::<serde_json::Value>().await?;
@@ -164,18 +164,19 @@ impl Translator {
         Ok(Self {})
     }
 
-    pub async fn translate(&self, cli: Client, db: &mut Connection, series: &[&(u16, String)]) -> anyhow::Result<()> {
+    pub async fn translate(&self, cli: &Client, db: &mut Connection, series: impl IntoIterator<Item = &(u16, String)>) -> anyhow::Result<()> {
         let mut seen = Vec::new();
 
         let mut tx = db.transaction()?;
         tx.set_drop_behavior(DropBehavior::Commit);
         let mut stmt = tx.prepare_cached("
-            SELECT scriptid, address, speaker dialogue.body, dialogue.variant_body, dialogueTl.body
-            FROM dialogue LEFT JOIN dialogueTl USING (scriptid, address)
+            SELECT address, speaker, body, variant_body, tl_body
+            FROM dialogue LEFT NATURAL JOIN dialogueTl
             WHERE scriptid = ? and thread = ?
         ")?;
 
-        for &&(scriptid, ref thread) in series {
+        for &(scriptid, ref thread) in series {
+            eprintln!("--------- {scriptid}:{thread} ---------");
             let mut rows = stmt.query((scriptid, thread))?;
             while let Some(row) = rows.next()? {
                 let (address, mut speaker, mut line, mut line_variant, translation) = <(u32, Option<String>, String, Option<String>, Option<String>)>::try_from(row)?;
@@ -200,33 +201,18 @@ impl Translator {
                     continue;
                 }
 
-                eprintln!("address = {address}");
+                eprintln!("address = {address:X}");
                 let speaker_prefix = speaker.as_ref().map_or(Ok::<_, anyhow::Error>(String::new()),
                     |speaker| Ok(format!("[{}]: ", decode_jp_speaker(speaker)?)))?;
-
-                let translation = {
-                    let prompt = loop {
-                        let prompt = build_prompt(&seen, speaker.as_deref(), &line)?;
-                        let tokens = tokenize(&cli, &prompt).await?;
-                        if tokens.len() > 8192-100 {
-                            seen.remove(0);
-                            continue;
-                        }
-                        break tokens
-                    };
-
-                    get_completion(&cli, &prompt, &speaker_prefix).await?
-                        .strip_prefix(&speaker_prefix).unwrap().trim().to_owned()
-                };
-
-                eprintln!("{speaker_prefix}{translation}\n");
-
+                
                 let translation_variant = match line_variant {
                     Some(line) => {
+                        // translate the variant in a vacuum
+                        let mut seen = seen.clone();
                         let prompt = loop {
                             let prompt = build_prompt(&seen, speaker.as_deref(), &line)?;
                             let tokens = tokenize(&cli, &prompt).await?;
-                            if tokens.len() > 8192-100 {
+                            if tokens.len() > 1024-100 {
                                 seen.remove(0);
                                 continue;
                             }
@@ -238,9 +224,26 @@ impl Translator {
                     },
                     None => None
                 };
+
+                let translation = {
+                    let prompt = loop {
+                        let prompt = build_prompt(&seen, speaker.as_deref(), &line)?;
+                        let tokens = tokenize(&cli, &prompt).await?;
+                        if tokens.len() > 1024-100 {
+                            seen.remove(0);
+                            continue;
+                        }
+                        break tokens
+                    };
+
+                    get_completion(&cli, &prompt, &speaker_prefix).await?
+                        .strip_prefix(&speaker_prefix).unwrap().trim().to_owned()
+                };
+
+                eprintln!("{speaker_prefix}{translation}\n");
                 
                 if let Some(ref variant) = translation_variant {
-                    eprintln!("{speaker_prefix}{variant} [VARIANT]\n");
+                    eprintln!("[VARIANT] {speaker_prefix}{variant}\n");
                 }
 
                 tx.execute("

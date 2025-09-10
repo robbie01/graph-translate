@@ -5,9 +5,7 @@ use reqwest::Client;
 
 use llm::Translator as LlmTramslator;
 
-pub async fn run(db: &mut Connection, series: &[&(u16, String)]) -> anyhow::Result<()> {
-    let cli = Client::new();
-
+pub async fn run(cli: &Client, db: &mut Connection, series: impl IntoIterator<Item = &(u16, String)>) -> anyhow::Result<()> {
     let tl = LlmTramslator::new()?;
     tl.translate(cli, db, series).await?;
 

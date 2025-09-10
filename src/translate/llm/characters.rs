@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Display, hash::{Hash, Hasher}, sync::LazyLock};
+use std::{borrow::Cow, collections::HashMap, fmt::Display, hash::{BuildHasherDefault, DefaultHasher, Hash, Hasher}, sync::LazyLock};
 
 #[derive(Debug, Default)]
 #[allow(clippy::manual_non_exhaustive)] 
@@ -140,3 +140,13 @@ pub fn decode_jp_speaker(jpspeaker: &str) -> anyhow::Result<EnSpeaker> {
     }
     Err(anyhow::anyhow!("bro I don't know {jpspeaker}"))
 }
+
+pub static ELEMENTS: &[(&'static str, &'static str)] = &[
+    ("透京", "[element] Name: Tokyo (透京) | Type: Place"),
+    ("透境門", "[element] Name: Tokyomon (透境門) | Type: Place"),
+    ("透迷ノ園", "[element] Name: Tomei-no-sono (透迷ノ園) | Type: Place"),
+    ("透淵ノ森", "[element] Name: Toen-no-mori (透淵ノ森) | Type: Place"),
+    ("白鴉", ""),
+    ("黒死紋事件", ""),
+    ("時輪のアストロラビ", "")
+];
