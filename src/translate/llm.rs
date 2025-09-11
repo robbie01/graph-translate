@@ -220,7 +220,8 @@ impl Translator {
                             let prompt = build_prompt(&seen, speaker.as_deref(), &line)?;
                             let tokens = tokenize(cli, &prompt).await?;
                             if tokens.len() > N_CTX-N_PREDICT {
-                                seen.remove(0);
+                                let one_eighth = (seen.len() / 8).max(1);
+                                seen.drain(0..one_eighth);
                                 continue;
                             }
                             break tokens
@@ -237,7 +238,9 @@ impl Translator {
                         let prompt = build_prompt(&seen, speaker.as_deref(), &line)?;
                         let tokens = tokenize(cli, &prompt).await?;
                         if tokens.len() > N_CTX-N_PREDICT {
-                            seen.remove(0);
+                            // Fairly conservative exponential reduction
+                            let one_eighth = (seen.len() / 8).max(1);
+                            seen.drain(0..one_eighth);
                             continue;
                         }
                         break tokens
