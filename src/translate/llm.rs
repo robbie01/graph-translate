@@ -13,6 +13,9 @@ use characters::{decode_jp_speaker, Character, EnSpeaker};
 
 use crate::translate::llm::characters::ELEMENTS;
 
+const N_CTX: usize = 1024;
+const N_PREDICT: usize = 32;
+
 #[derive(Debug)]
 pub struct Translator {}
 
@@ -143,7 +146,7 @@ async fn get_completion(client: &Client, prompt: &[u32], speaker: &str) -> anyho
         .post("http://127.0.0.1:8080/completion")
         .json(&json!({
              "prompt": prompt,
-             "n_predict": 100,
+             "n_predict": N_PREDICT,
              "grammar": format!("root ::= \"{speaker}\" [^\\x00]*")
         }))
         .send().await?.error_for_status()?
@@ -217,7 +220,7 @@ impl Translator {
                         let prompt = loop {
                             let prompt = build_prompt(&seen, speaker.as_deref(), &line)?;
                             let tokens = tokenize(cli, &prompt).await?;
-                            if tokens.len() > 1024-100 {
+                            if tokens.len() > N_CTX-N_PREDICT {
                                 seen.remove(0);
                                 continue;
                             }
@@ -234,7 +237,7 @@ impl Translator {
                     let prompt = loop {
                         let prompt = build_prompt(&seen, speaker.as_deref(), &line)?;
                         let tokens = tokenize(cli, &prompt).await?;
-                        if tokens.len() > 1024-100 {
+                        if tokens.len() > N_CTX-N_PREDICT {
                             seen.remove(0);
                             continue;
                         }
