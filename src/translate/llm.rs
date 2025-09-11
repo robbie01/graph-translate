@@ -54,6 +54,21 @@ fn build_header(seen: &[Seen], next_speaker: Option<&str>, next_line: &str) -> a
         })
         .collect::<anyhow::Result<HashSet<&Character>>>()?;
 
+    for c in characters::CHARACTERS.iter() {
+        if cs.contains(c) { continue }
+        let sp = if c.jpshort.is_empty() { c.jpspeaker } else { c.jpshort };
+        if next_line.contains(sp) {
+            cs.insert(c);
+            continue
+        }
+        for (a, _) in c.aliases.iter() {
+            if next_line.contains(a) {
+                cs.insert(c);
+                continue
+            }
+        }
+    }
+
     let mut els = HashSet::<&'static str>::new();
     for s in seen {
         for &(el, elt) in ELEMENTS {
@@ -65,20 +80,6 @@ fn build_header(seen: &[Seen], next_speaker: Option<&str>, next_line: &str) -> a
     for &(el, elt) in ELEMENTS {
         if next_line.contains(el) {
             els.insert(elt);
-        }
-    }
-
-    for c in characters::CHARACTERS.iter() {
-        if cs.contains(c) { continue }
-        if next_line.contains(c.jpspeaker) {
-            cs.insert(c);
-            continue
-        }
-        for (a, _) in c.aliases.iter() {
-            if next_line.contains(a) {
-                cs.insert(c);
-                continue
-            }
         }
     }
 
