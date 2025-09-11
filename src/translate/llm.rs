@@ -14,7 +14,7 @@ use characters::{decode_jp_speaker, Character, EnSpeaker};
 use crate::translate::llm::characters::ELEMENTS;
 
 const N_CTX: usize = 1024;
-const N_PREDICT: usize = 32;
+const N_PREDICT: usize = 36;
 
 #[derive(Debug)]
 pub struct Translator {}
@@ -156,12 +156,11 @@ async fn get_completion(client: &Client, prompt: &[u32], speaker: &str) -> anyho
         .pointer("/content").context("no content")?
         .as_str().context("content is not string")?.to_owned();
 
-    let truncated = resp
-        .pointer("/truncated")
-        .and_then(|t| t.as_bool())
-        .unwrap_or(false);
+    let stop_type = resp
+        .pointer("/stop_type").context("no stop type")?
+        .as_str().context("stop type is not str")?;
 
-    if truncated {
+    if stop_type != "eos" {
         Err(MaxTokensReachedError(content).into())
     } else {
         Ok(content)
