@@ -146,7 +146,7 @@ pub static ELEMENTS: &[(&str, &str)] = &[
     ("透境門", "[element] Name: Tokyomon (透境門) | Type: Place"),
     ("透迷ノ園", "[element] Name: Tomei-no-sono (透迷ノ園) | Type: Place"),
     ("透淵ノ森", "[element] Name: Toen-no-mori (透淵ノ森) | Type: Place"),
-    ("白鴉", ""),
-    ("黒死紋事件", ""),
-    ("時輪のアストロラビ", "")
+    ("白鴉", "[element] Name: Hakua (白鴉) | Type: Familiar"), // adjust the type on this one tbh
+    ("黒死紋事件", "[element] Name: Black Death Mark Incident (黒死紋事件) | Type: Event"), // copilot suggestion
+    ("時輪のアストロラビ", "[element] Name: Astronomical Clock (時輪のアストロラビ) | Type: Equipment") // pulled this one out of my ass
 ];

@@ -11,6 +11,8 @@ use rusqlite::{Connection, DropBehavior};
 
 use characters::{decode_jp_speaker, Character, EnSpeaker};
 
+use crate::translate::llm::characters::ELEMENTS;
+
 #[derive(Debug)]
 pub struct Translator {}
 
@@ -51,12 +53,16 @@ fn build_header(seen: &[Seen], next_speaker: Option<&str>, next_line: &str) -> a
 
     let mut els = HashSet::<&'static str>::new();
     for s in seen {
-        if s.jpline.contains("透京") {
-            els.insert("[element] Name: Tokyo (透京) | Type: Place");
+        for &(el, elt) in ELEMENTS {
+            if s.jpline.contains(el) {
+                els.insert(elt);
+            }
         }
     }
-    if next_line.contains("透京") {
-        els.insert("[element] Name: Tokyo (透京) | Type: Place");
+    for &(el, elt) in ELEMENTS {
+        if next_line.contains(el) {
+            els.insert(elt);
+        }
     }
 
     for c in characters::CHARACTERS.iter() {
@@ -172,8 +178,7 @@ impl Translator {
         let mut stmt = tx.prepare_cached("
             SELECT address, speaker, body, variant_body, tl_body
             FROM dialogue LEFT NATURAL JOIN dialogueTl
-            WHERE scriptid = ? and thread = ?
-        ")?;
+            WHERE scriptid = ? and thread = ?")?;
 
         for &(scriptid, ref thread) in series {
             eprintln!("\n--------- {scriptid}:{thread} ---------");
@@ -247,9 +252,9 @@ impl Translator {
                 }
 
                 tx.prepare_cached("
-                    INSERT OR REPLACE INTO dialogueTl(scriptid, address, body, variant_body)
-                    VALUES (?, ?, ?, ?)
-                ")?.execute((scriptid, address, &translation, translation_variant))?;
+                    INSERT OR REPLACE INTO dialogueTl(scriptid, address, tl_body, tl_variant_body)
+                    VALUES (?, ?, ?, ?)")?
+                    .execute((scriptid, address, &translation, translation_variant))?;
 
                 seen.push(Seen {
                     speaker: speaker.map(|speaker| {

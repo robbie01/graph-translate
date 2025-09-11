@@ -2,8 +2,8 @@
 mod translate;
 
 use std::{cmp::Reverse, collections::{BTreeSet, BinaryHeap, HashSet}, path::PathBuf};
-use indexmap::IndexSet;
-use petgraph::{csr::Csr, visit::EdgeRef, Directed};
+use indexmap::IndexMap;
+use petgraph::{visit::EdgeRef, Directed, Graph};
 use rusqlite::{Connection, OpenFlags};
 use clap::Parser;
 
@@ -13,25 +13,25 @@ struct Args {
     file: PathBuf
 }
 
-fn dijkstra(graph: &Csr<(), u8, Directed, u32>) -> Vec<u32> {
+fn dijkstra(graph: &Graph<(), u8, Directed, u32>) -> Vec<u32> {
     let mut seen = HashSet::with_capacity(graph.node_count());
     let mut dist = vec![None; graph.node_count()];
     let mut pred = vec![None; graph.node_count()];
-
     let mut q = BinaryHeap::new();
+    
     dist[0] = Some(0u32);
     q.push(Reverse((0, 0)));
 
     while let Some(Reverse((_, u))) = q.pop() {
         if !seen.insert(u) { continue; }
 
-        for e in graph.edges(u) {
-            let v = e.target();
-            let alt = dist[u as usize].and_then(|d| d.checked_add(*e.weight() as u32));
-            if let Some(alt) = alt && dist[v as usize].is_none_or(|d| alt < d) {
-                pred[v as usize] = Some(u);
-                dist[v as usize] = Some(alt);
-                q.push(Reverse((alt, v)));
+        for e in graph.edges(u.into()) {
+            let v = e.target().index();
+            let alt = dist[u as usize].unwrap().checked_add((*e.weight()).into()).unwrap();
+            if dist[v].is_none_or(|d| alt < d) {
+                pred[v] = Some(u);
+                dist[v] = Some(alt);
+                q.push(Reverse((alt, v as u32)));
             }
         }
     }
@@ -67,56 +67,52 @@ async fn main() -> anyhow::Result<()> {
 
     let vertices = {
         let mut stmt = db.prepare("
-            SELECT tScriptid, tThread FROM graph
-            UNION SELECT hScriptid, hThread FROM graph
-            UNION SELECT scriptid, thread FROM dialogue")?;
-        stmt.query_map((), |row| <(u16, String)>::try_from(row))?.collect::<Result<IndexSet<_>, _>>()?
+            WITH vertices(scriptid, thread) AS (
+                SELECT tScriptid, tThread FROM graph
+                UNION SELECT hScriptid, hThread FROM graph
+                UNION SELECT scriptid, thread FROM dialogue)
+            SELECT scriptid, thread, COUNT(body) - COUNT(tl_body)
+            FROM vertices LEFT NATURAL JOIN dialogue LEFT NATURAL JOIN dialogueTl
+            GROUP BY scriptid, thread")?;
+        stmt.query_map((), |row| {
+            let (scriptid, thread, rem) = row.try_into()?;
+            Ok(((scriptid, thread), rem))
+        })?.collect::<Result<IndexMap<(u16, String), u8>, _>>()?
     };
 
-    let rem = {
-        let mut stmt = db.prepare("
-            SELECT scriptid, thread
-            FROM dialogue LEFT NATURAL JOIN dialogueTl
-            GROUP BY scriptid, thread
-            HAVING (COUNT(body) - COUNT(tl_body)) > 0")?;
-        stmt.query_map((), |row| row.try_into())?
-            .collect::<Result<HashSet<(u16, String)>, _>>()?
-    };
+    let mut graph = Graph::<(), u8, Directed, u32>::new();
 
-    let mut graph = Csr::<(), u8, Directed, u32>::with_nodes(vertices.len() + 1);
+    graph.reserve_exact_nodes(vertices.len() + 1);
 
     {
         let mut stmt = db.prepare("
             SELECT tScriptid, tThread, hScriptid, hThread, count(body)
             FROM graph LEFT JOIN dialogue ON (hScriptid, hThread) = (scriptid, thread)
             GROUP BY tScriptid, tThread, hScriptid, hThread")?;
-        let mut rows = stmt.query(())?;
-        while let Some(row) = rows.next()? {
+
+        graph.extend_with_edges(stmt.query_map((), |row| {
             let (t_scriptid, t_thread, h_scriptid, h_thread, weight): (u16, String, u16, String, u8) = row.try_into()?;
             let t_idx = vertices.get_index_of(&(t_scriptid, t_thread)).unwrap();
             let h_idx = vertices.get_index_of(&(h_scriptid, h_thread)).unwrap();
-            let added = graph.add_edge(t_idx as u32 + 1, h_idx as u32 + 1, weight);
-            assert!(added);
-        }
+            Ok((t_idx as u32 + 1, h_idx as u32 + 1, weight))
+        })?.map(Result::unwrap));
     }
 
     {
         let mut stmt = db.prepare("
-            WITH tops(scriptid, thread) AS (
+            WITH roots(scriptid, thread) AS (
                 SELECT tScriptid, tThread FROM graph
                 UNION SELECT scriptid, thread FROM dialogue
                 EXCEPT SELECT hScriptid, hThread from graph)
             SELECT scriptid, thread, count(body)
-            FROM tops LEFT NATURAL JOIN dialogue
+            FROM roots LEFT NATURAL JOIN dialogue
             GROUP BY scriptid, thread")?;
-        let mut rows = stmt.query(())?;
-        
-        while let Some(row) = rows.next()? {
-            let (h_scriptid, h_thread, weight) = row.try_into()?;
+
+        graph.extend_with_edges(stmt.query_map((), |row| {
+            let (h_scriptid, h_thread, weight): (u16, String, u8) = row.try_into()?;
             let h_idx = vertices.get_index_of(&(h_scriptid, h_thread)).unwrap();
-            let added = graph.add_edge(0, h_idx as u32 + 1, weight);
-            assert!(added);
-        }
+            Ok((0, h_idx as u32 + 1, weight))
+        })?.map(Result::unwrap));
     }
 
     let pred = dijkstra(&graph);
@@ -133,9 +129,9 @@ async fn main() -> anyhow::Result<()> {
             path.push(pred[leaf as usize]);
             leaf = pred[leaf as usize];
         }
-        let series = path.into_iter().rev().map(|v| vertices.get_index(v as usize - 1).unwrap()).collect::<Vec<_>>();
+        let series = path.into_iter().rev().map(|v| vertices.get_index(v as usize - 1).unwrap().0).collect::<Vec<_>>();
 
-        if series.iter().all(|&v| !rem.contains(v)) {
+        if series.iter().all(|&v| *vertices.get(v).unwrap() == 0) {
             // we've done all of these already
             continue;
         }
