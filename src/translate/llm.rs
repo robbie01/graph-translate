@@ -14,7 +14,7 @@ use characters::{decode_jp_speaker, Character, EnSpeaker};
 use crate::translate::llm::characters::ELEMENTS;
 
 const N_CTX: usize = 1024;
-const N_PREDICT: usize = 36;
+const N_PREDICT: usize = 64;
 
 #[derive(Debug)]
 pub struct Translator {}
