@@ -138,12 +138,22 @@ pub fn decode_jp_speaker(jpspeaker: &str) -> anyhow::Result<EnSpeaker> {
 }
 
 pub static ELEMENTS: &[(&str, &str)] = &[
+    // I *think* this is all of the 透 terms. Localizing them is another story...
     ("透京", "[element] Name: Tokyo (透京) | Type: Place"),
     ("透境門", "[element] Name: Tokyomon (透境門) | Type: Place"),
     ("透迷ノ園", "[element] Name: Tomei-no-sono (透迷ノ園) | Type: Place"),
     ("透淵ノ森", "[element] Name: Toen-no-mori (透淵ノ森) | Type: Place"),
+    ("透外ノ都", "[element] Name: Togai-no-miyako (透外ノ都) | Type: Place"),
+    ("透彩ノ洞", "[element] Name: Tosai-no-hora (透彩ノ洞) | Type: Place"),
+    ("透花ノ野", "[element] Name: Toka-no-no (透花ノ野) | Type: Place"),
+    ("透木ノ集", "[element] Name: Toboku-no-tsudoi (透木ノ集) | Type: Place"),
+    ("透澄ノ泉", "[element] Name: Tocho-no-izumi (透澄ノ泉) | Type: Place"),
+    ("透花", "[element] Name: Toka (透花) | Type: Plant"),
+    ("透櫻", "[element] Name: Sukizakura (透櫻) | Type: Plant"),
+    
     ("白鴉", "[element] Name: white crow (白鴉) | Type: Animal"),
     ("カワウソ", "[element] Name: otter (カワウソ) | Type: Animal"),
     ("黒死紋事件", "[element] Name: Black Death Mark Incident (黒死紋事件) | Type: Event"), // copilot suggestion
-    ("時輪のアストロラビ", "[element] Name: Astronomical Clock (時輪のアストロラビ) | Type: Equipment") // pulled this one out of my ass
+    ("時輪のアストロラビ", "[element] Name: Astronomical Clock (時輪のアストロラビ) | Type: Equipment"), // pulled this one out of my ass
+    ("アストロラーベ", "[element] Name: Astrolabe (アストロラーベ) | Type: Equipment") // pulled this one out of my ass
 ];
