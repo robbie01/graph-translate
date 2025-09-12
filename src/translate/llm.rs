@@ -190,7 +190,12 @@ impl Translator {
                 let (address, mut speaker, mut line, mut line_variant, translation) = <(u32, Option<String>, String, Option<String>, Option<String>)>::try_from(row)?;
 
                 if let Some(ref mut speaker) = speaker {
-                    *speaker = speaker.replace("#Name[1]", "玻ヰ璃").replace("#Name[2]", "ハイリ");
+                    if speaker == "憂漣[ユーレン]ミュラー" || speaker == "憂漣[ユーレン]=ミュラー" {
+                        // fix a stupid artifact
+                        *speaker = "憂漣[ユーレン]＝ミュラー".into();
+                    } else {
+                        *speaker = speaker.trim().replace("#Name[1]", "玻ヰ璃").replace("#Name[2]", "ハイリ");
+                    }
                 }
                 line = line.replace("#Name[1]", "玻ヰ璃").replace("#Name[2]", "ハイリ");
                 if let Some(ref mut line_variant) = line_variant {
