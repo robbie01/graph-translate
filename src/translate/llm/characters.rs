@@ -150,9 +150,10 @@ pub static ELEMENTS: &[(&str, &str)] = &[
     ("透澄ノ泉", "[element] Name: Tocho-no-izumi (透澄ノ泉) | Type: Place"),
     ("透花", "[element] Name: Toka (透花) | Type: Plant"),
     ("透櫻", "[element] Name: Sukizakura (透櫻) | Type: Plant"),
-    
+
     ("白鴉", "[element] Name: white crow (白鴉) | Type: Animal"),
     ("カワウソ", "[element] Name: otter (カワウソ) | Type: Animal"),
+    ("ガラスの靴", "[element] Name: glass slippers (ガラスの靴) | Type: Accessory"),
     ("黒死紋事件", "[element] Name: Black Death Mark Incident (黒死紋事件) | Type: Event"), // copilot suggestion
     ("時輪のアストロラビ", "[element] Name: Astronomical Clock (時輪のアストロラビ) | Type: Equipment"), // pulled this one out of my ass
     ("アストロラーベ", "[element] Name: Astrolabe (アストロラーベ) | Type: Equipment") // pulled this one out of my ass
